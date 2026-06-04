@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runner</title>
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+}
+
+canvas{
+    display:block;
+}
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+function ajustarTela() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+ajustarTela();
+
+window.addEventListener("resize", ajustarTela);
+let lanes = [];
+
+function atualizarPistas(){
+    lanes = [
+        canvas.width * 0.25,
+        canvas.width * 0.50,
+        canvas.width * 0.75
+    ];
+}
+
+atualizarPistas();
+window.addEventListener("resize", atualizarPistas);
+
+let player = {
+    lane:1,
+    x:lanes[1],
+    y:600,
+    w:40,
+    h:60
+};
+
+let obstacles = [];
+let coins = [];
+
+let score = 0;
+let phase = 1;
+let speed = 6;
+let recorde = Number(localStorage.getItem("recordeRunner")) || 0;
+
+let moedas = 0;
+let vidas = 3;
+
+let gameOver = false;
+
+function spawnObstacle(){
+    obstacles.push({
+        lane:Math.floor(Math.random()*3),
+        y:-80,
+        w:50,
+        h:70
+    });
+}
+
+function ajustarTela(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+ajustarTela();
+
+window.addEventListener("resize", ajustarTela);
+function spawnCoin(){
+    coins.push({
+        lane:Math.floor(Math.random()*3),
+        y:-30,
+        r:15
+    });
+}
+function reiniciarJogo(){
+
+    score = 0;
+    phase = 1;
+    speed = 6;
+
+    moedas = 0;
+    vidas = 3;
+
+    obstacles = [];
+    coins = [];
+
+    player.lane = 1;
+
+    gameOver = false;
+}
+setInterval(()=>{
+    if(!gameOver){
+        spawnObstacle();
+    }
+},1200);
+
+setInterval(()=>{
+    if(!gameOver){
+        spawnCoin();
+    }
+},800);
+
+document.addEventListener("keydown",(e)=>{
+
+    if(gameOver) return;
+
+    if(e.key==="ArrowLeft" && player.lane>0){
+        player.lane--;
+    }
+
+    if(e.key==="ArrowRight" && player.lane<2){
+        player.lane++;
+    }
+});
+
+canvas.addEventListener("touchstart",(e)=>{
+
+    if(gameOver){
+        reiniciarJogo();
+        return;
+    }
+
+    let x = e.touches[0].clientX;
+
+    if(x < window.innerWidth/2){
+        if(player.lane > 0){
+            player.lane--;
+        }
+    }else{
+        if(player.lane < 2){
+            player.lane++;
+        }
+    }
+});
+
+function collision(a,b){
+    return(
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+    );
+}
+
+function update(){
+
+    if(gameOver) return;
+
+    player.x = lanes[player.lane] - player.w/2;
+
+    score++;
+
+    if(score % 1000 === 0){
+        phase++;
+        speed += 1;
+    }
+
+    obstacles.forEach(o=>{
+        o.y += speed;
+    });
+
+    coins.forEach(c=>{
+        c.y += speed;
+    });
+
+    obstacles = obstacles.filter(o=>o.y < canvas.height + 100);
+    coins = coins.filter(c=>c.y < canvas.height + 50);
+
+    obstacles.forEach((o,index)=>{
+
+        let box = {
+            x:lanes[o.lane]-o.w/2,
+            y:o.y,
+            w:o.w,
+            h:o.h
+        };
+
+        if(collision(player,box)){
+
+            vidas--;
+
+            obstacles.splice(index,1);
+
+            if(vidas <= 0){
+                gameOver = true;
+            }
+        }
+    });
+
+    coins.forEach((c,index)=>{
+
+        let coinBox = {
+            x:lanes[c.lane]-15,
+            y:c.y-15,
+            w:30,
+            h:30
+        };
+
+        if(collision(player,coinBox)){
+
+            moedas++;
+            score += 100;
+
+            if(moedas % 30 === 0){
+                vidas++;
+            }
+
+            coins.splice(index,1);
+        }
+    });
+}
+
+function draw(){
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Estrada
+    ctx.fillStyle="#555";
+    ctx.fillRect(
+    canvas.width * 0.1,
+    0,
+    canvas.width * 0.8,
+    canvas.height
+);
+
+    // Faixas
+    ctx.strokeStyle="white";
+    ctx.lineWidth=4;
+
+    ctx.beginPath();
+    ctx.moveTo(150,0);
+    ctx.lineTo(150,700);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(250,0);
+    ctx.lineTo(250,700);
+    ctx.stroke();
+
+    // Jogador
+    ctx.fillStyle="red";
+    ctx.fillRect(
+        player.x,
+        player.y,
+        player.w,
+        player.h
+    );
+
+    // Obstáculos
+    ctx.fillStyle="green";
+
+    obstacles.forEach(o=>{
+        ctx.fillRect(
+            lanes[o.lane]-o.w/2,
+            o.y,
+            o.w,
+            o.h
+        );
+    });
+
+    // Moedas
+    ctx.fillStyle="gold";
+
+    coins.forEach(c=>{
+        ctx.beginPath();
+        ctx.arc(
+            lanes[c.lane],
+            c.y,
+            c.r,
+            0,
+            Math.PI*2
+        );
+        ctx.fill();
+    });
+
+    // Informações
+    ctx.fillStyle="black";
+    ctx.font="22px Arial";
+
+    ctx.fillText("Pontos: " + score,10,30);
+    ctx.fillText("Fase: " + phase,10,60);
+    ctx.fillText("Moedas: " + moedas,10,90);
+    ctx.fillText("Vidas: " + vidas,10,120);
+    ctx.fillText("Recorde: " + recorde, 10, 150);
+if(vidas <= 0){
+
+    if(score > recorde){
+        recorde = score;
+        localStorage.setItem("recordeRunner", recorde);
+    }
+
+    gameOver = true;
+}
+    if(gameOver){ctx.font = "22px Arial";
+ctx.fillText("Recorde: " + recorde, 100, 390);
+
+        ctx.fillStyle="black";
+        ctx.font="40px Arial";
+        ctx.fillText("GAME OVER",70,300);
+
+        ctx.font="25px Arial";
+        ctx.fillText("Pontuação: " + score,90,350);
+    }
+}
+
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+
+</script>
+
+</body>
